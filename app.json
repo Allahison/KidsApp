@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "kidsapp",
+    "slug": "kidsapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/1.jpeg",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/1.jpeg",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/1.jpeg",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.kidsapp"
+    },
+    "web": {
+      "favicon": "./assets/1.jpeg"
+    }
+  }
+}
