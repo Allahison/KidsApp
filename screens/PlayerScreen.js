@@ -10,11 +10,14 @@ import {
   Modal,
   Dimensions,
   StatusBar,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { Video } from 'expo-av';
 import { supabase } from '../supabaseClient';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import Voice from '@react-native-voice/voice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,7 +25,7 @@ export default function PlayerScreen() {
   const [playlist, setPlaylist] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userId, setUserId] = useState(null);
-  const [intervalMs, setIntervalMs] = useState(300000); // 5 minutes
+  const [intervalMs, setIntervalMs] = useState(300000);
   const [manualSkip, setManualSkip] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const intervalRef = useRef(null);
@@ -34,6 +37,7 @@ export default function PlayerScreen() {
     setCurrentIdx(newIndex);
   };
 
+  // Get user ID from Supabase auth
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -42,6 +46,7 @@ export default function PlayerScreen() {
     getUser();
   }, []);
 
+  // Fetch settings and playlist from Supabase
   useEffect(() => {
     const fetchData = async () => {
       if (!userId) return;
@@ -69,9 +74,9 @@ export default function PlayerScreen() {
           url: item.video_url,
           isLocal: item.video_url.startsWith('file://'),
         }));
-        const formattedStr = JSON.stringify(formatted);
-        const oldStr = JSON.stringify(playlist);
-        if (formattedStr !== oldStr) setPlaylist(formatted);
+        if (JSON.stringify(formatted) !== JSON.stringify(playlist)) {
+          setPlaylist(formatted);
+        }
       } else {
         setPlaylist([]);
       }
@@ -82,6 +87,7 @@ export default function PlayerScreen() {
     return () => clearInterval(interval);
   }, [userId, playlist]);
 
+  // Auto skip if manualSkip is false
   useEffect(() => {
     if (!manualSkip && playlist.length > 0) {
       intervalRef.current = setInterval(() => {
@@ -89,12 +95,11 @@ export default function PlayerScreen() {
         setIndex(next);
       }, intervalMs);
 
-      return () => {
-        clearInterval(intervalRef.current);
-      };
+      return () => clearInterval(intervalRef.current);
     }
   }, [manualSkip, intervalMs, playlist]);
 
+  // Convert YouTube URL to ID
   const convertToVideoId = (url) => {
     const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
     return match ? match[1] : null;
@@ -114,6 +119,57 @@ export default function PlayerScreen() {
 
   const currentVideo =
     playlist.length > 0 ? playlist[currentIdx] : { url: defaultVideo, isLocal: false };
+
+  // === Voice Control Setup ===
+  const startVoiceRecognition = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          console.warn('Microphone permission denied');
+          return;
+        }
+      }
+      await Voice.start('en-US');
+    } catch (e) {
+      console.error('Voice start error:', e);
+    }
+  };
+
+  const stopVoiceRecognition = async () => {
+    try {
+      await Voice.stop();
+    } catch (e) {
+      console.error('Voice stop error:', e);
+    }
+  };
+
+  useEffect(() => {
+    Voice.onSpeechResults = (event) => {
+      if (!event?.value?.length) return;
+      const command = event.value[0].toLowerCase();
+      console.log('Voice command:', command);
+
+      if (command.includes('next')) {
+        nextVideo();
+      } else if (command.includes('previous') || command.includes('back')) {
+        prevVideo();
+      }
+    };
+
+    Voice.onSpeechError = (err) => {
+      console.warn('Voice error:', err);
+    };
+
+    startVoiceRecognition();
+
+    return () => {
+      stopVoiceRecognition();
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -189,11 +245,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 12,
     backgroundColor: '#111',
-  },
-  video: {
-    width: '100%',
-    height: 230,
-    backgroundColor: '#000',
   },
   fullscreenVideo: {
     width,

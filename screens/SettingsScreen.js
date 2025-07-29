@@ -175,31 +175,30 @@ export default function SettingsScreen() {
       </TouchableOpacity>
     </View>
   );
-}
-
-const styles = StyleSheet.create({
+}const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#000000', // Black background
   },
   label: {
     fontSize: 16,
     marginBottom: 6,
     fontWeight: '600',
-    color: '#333',
+    color: '#ffffff', // White text
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#555', // Slightly visible border on dark background
     padding: 12,
     borderRadius: 10,
     marginBottom: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#1a1a1a', // Dark input background
+    color: '#ffffff', // White text
   },
   disabledInput: {
-    backgroundColor: '#f0f0f0',
-    color: '#999',
+    backgroundColor: '#333',
+    color: '#aaa',
   },
   switchRow: {
     flexDirection: 'row',
@@ -215,7 +214,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   buttonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontWeight: 'bold',
     fontSize: 16,
   },
@@ -229,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   logoutText: {
-    color: '#fff',
+    color: '#ffffff',
     fontWeight: '700',
     fontSize: 16,
   },
@@ -240,10 +239,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000000', // Ensure loading screen is also black
   },
   loadingText: {
     fontSize: 16,
     marginTop: 10,
-    color: '#666',
+    color: '#cccccc', // Light gray for visibility
   },
 });

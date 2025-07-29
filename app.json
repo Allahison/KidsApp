@@ -2,6 +2,7 @@
   "expo": {
     "name": "kidsapp",
     "slug": "kidsapp",
+    "scheme": "kidsapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/1.jpeg",
@@ -13,22 +14,39 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.kidsapp"
     },
     "android": {
+      "package": "com.anonymous.kidsapp",
+      "permissions": ["RECORD_AUDIO"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/1.jpeg",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.kidsapp"
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": {
+            "scheme": "https",
+            "host": "kidsapp.com",
+            "pathPrefix": "/"
+          },
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": {
+            "scheme": "kidsapp"
+          },
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/1.jpeg"
     },
-    "plugins": [
-      "expo-video",
-      "expo-audio"
-    ]
+    "plugins": ["expo-video", "expo-av"]
   }
 }
