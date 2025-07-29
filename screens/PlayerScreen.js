@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,21 +8,27 @@ import {
   ActivityIndicator,
   Button,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+import YoutubePlayer from 'react-native-youtube-iframe';
+import { Video } from 'expo-av';
 import { supabase } from '../supabaseClient';
 
 export default function PlayerScreen() {
   const [playlist, setPlaylist] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [defaultVideoPlayed, setDefaultVideoPlayed] = useState(false);
   const [userId, setUserId] = useState(null);
-  const [intervalMs, setIntervalMs] = useState(300000); // default 5 mins
+  const [intervalMs, setIntervalMs] = useState(300000); // 5 minutes
   const [manualSkip, setManualSkip] = useState(true);
-  const timerRef = useRef(null);
 
-  const defaultVideo = 'https://www.youtube.com/embed/zukBYyKT000?autoplay=1';
+  const indexRef = useRef(0); // ✅ for stable interval
+  const defaultVideo = 'https://www.youtube.com/watch?v=zukBYyKT000';
 
-  // 1. Fetch user
+  // Keep ref in sync
+  const setIndex = (newIndex) => {
+    indexRef.current = newIndex;
+    setCurrentIdx(newIndex);
+  };
+
+  // Fetch logged in user
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -33,111 +39,100 @@ export default function PlayerScreen() {
     getUser();
   }, []);
 
-  // 2. Fetch settings + playlist
+  // Fetch settings + playlist
   useEffect(() => {
     const fetchData = async () => {
       if (!userId) return;
 
-      // Fetch settings
-      const { data: settingData, error: settingError } = await supabase
+      const { data: settingData } = await supabase
         .from('settings')
         .select('auto_interval, manual_skip')
         .eq('user_id', userId)
         .single();
 
-      if (!settingError && settingData) {
+      if (settingData) {
         const minutes = settingData.auto_interval || 5;
         setIntervalMs(minutes * 60 * 1000);
         setManualSkip(settingData.manual_skip ?? true);
       }
 
-      // Fetch playlist
-      const { data: playlistData, error: playlistError } = await supabase
+      const { data: playlistData } = await supabase
         .from('playlists')
         .select('video_url, order_index')
         .eq('user_id', userId)
         .order('order_index', { ascending: true });
 
-      if (!playlistError && playlistData?.length > 0) {
-        const formatted = playlistData.map((item) =>
-          convertToEmbedUrl(item.video_url)
-        );
-        setPlaylist(formatted);
-        setDefaultVideoPlayed(false);
-        setCurrentIdx(0);
+      if (playlistData?.length > 0) {
+        const formatted = playlistData.map((item) => ({
+          url: item.video_url,
+          isLocal: item.video_url.startsWith('file://'),
+        }));
+
+        // ✅ Only update if different
+        const formattedStr = JSON.stringify(formatted);
+        const oldStr = JSON.stringify(playlist);
+        if (formattedStr !== oldStr) {
+          setPlaylist(formatted);
+        }
       } else {
         setPlaylist([]);
       }
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 10000); // auto-refresh every 10s
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, [userId]);
+  }, [userId, playlist]);
 
-  // 3. Auto video switch (FIXED)
+  // ✅ Auto-skip logic
   useEffect(() => {
-    // Clear existing timer
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    // Only set timer if auto-skip mode is on
     if (!manualSkip && playlist.length > 0) {
-      timerRef.current = setTimeout(() => {
-        setCurrentIdx((prev) => (prev + 1) % playlist.length);
+      const timer = setInterval(() => {
+        const next = (indexRef.current + 1) % playlist.length;
+        setIndex(next);
       }, intervalMs);
+
+      return () => clearInterval(timer);
     }
+  }, [manualSkip, intervalMs, playlist]);
 
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [currentIdx, manualSkip, playlist.length, intervalMs]);
-
-  const convertToEmbedUrl = (url) => {
-    try {
-      const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-      return match
-        ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&controls=1`
-        : url;
-    } catch {
-      return url;
-    }
+  const convertToVideoId = (url) => {
+    const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+    return match ? match[1] : null;
   };
 
-  const nextVideo = () => {
-    setCurrentIdx((prev) => (prev + 1) % playlist.length);
-  };
+  const nextVideo = () => setIndex((indexRef.current + 1) % playlist.length);
+  const prevVideo = () =>
+    setIndex((indexRef.current - 1 + playlist.length) % playlist.length);
 
-  const prevVideo = () => {
-    setCurrentIdx((prev) => (prev - 1 + playlist.length) % playlist.length);
-  };
-
-  const currentUrl =
+  const currentVideo =
     playlist.length > 0
       ? playlist[currentIdx]
-      : defaultVideoPlayed
-      ? null
-      : defaultVideo;
+      : { url: defaultVideo, isLocal: false };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {currentUrl ? (
-          <WebView
-            style={styles.webview}
-            source={{ uri: currentUrl }}
-            allowsInlineMediaPlayback
-            javaScriptEnabled
-            onError={(e) => {
-              const { description } = e.nativeEvent;
-              Alert.alert('WebView Error', description);
-            }}
-          />
+        {currentVideo ? (
+          currentVideo.isLocal ? (
+            <Video
+              source={{ uri: currentVideo.url }}
+              style={styles.video}
+              useNativeControls
+              resizeMode="contain"
+              shouldPlay
+              onError={(err) =>
+                Alert.alert('Video Error', JSON.stringify(err))
+              }
+            />
+          ) : (
+            <YoutubePlayer
+              height={230}
+              play={true}
+              videoId={convertToVideoId(currentVideo.url)}
+              onError={(e) => Alert.alert('YouTube Error', JSON.stringify(e))}
+            />
+          )
         ) : (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No videos to play.</Text>
@@ -145,7 +140,6 @@ export default function PlayerScreen() {
           </View>
         )}
 
-        {/* 4. Manual control */}
         {manualSkip && playlist.length > 0 && (
           <View style={styles.controls}>
             <Button title="⏮️ Previous" onPress={prevVideo} />
@@ -165,9 +159,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  webview: {
-    flex: 1,
+    justifyContent: 'center',
   },
   empty: {
     flex: 1,
@@ -185,5 +177,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 12,
     backgroundColor: '#111',
+  },
+  video: {
+    width: '100%',
+    height: 230,
+    backgroundColor: '#000',
   },
 });
