@@ -25,6 +25,10 @@
     },
     "web": {
       "favicon": "./assets/1.jpeg"
-    }
+    },
+    "plugins": [
+      "expo-video",
+      "expo-audio"
+    ]
   }
 }
